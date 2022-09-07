@@ -8,6 +8,9 @@ const { constants } = require("ethers");
 const ZERO = constants.Zero;
 const ONE = constants.One;
 
+const INSUFFICIENT_COLLATERAL = "INSUFFICIENT_COLLATERAL";
+const INVALID_AMOUNT = "INVALID_AMOUNT";
+
 describe("Bank", function () {
     // We define a fixture to reuse the same setup in every test.
     // We use loadFixture to run this setup once, snapshot that state,
@@ -63,15 +66,15 @@ describe("Bank", function () {
             const collateral = BigInt(1e18);
             const amount = BigInt(1000e18);
 
-            await expect(bank.connect(jack).takeOutLoan(amount, { value: collateral })).to.be.revertedWith("INSUFFICIENT_COLLATERAL");
+            await expect(bank.connect(jack).takeOutLoan(amount, { value: collateral })).to.be.revertedWith(INSUFFICIENT_COLLATERAL);
         });
 
         it("Should fail because of zero amount", async function () {
 
             const { bank, jack } = await loadFixture(deploy);
 
-            await expect(bank.connect(jack).takeOutLoan(ZERO, { value: ONE })).to.be.revertedWith("INVALID_AMOUNT");
-            await expect(bank.connect(jack).takeOutLoan(ONE, { value: ZERO })).to.be.revertedWith("INVALID_AMOUNT");
+            await expect(bank.connect(jack).takeOutLoan(ZERO, { value: ONE })).to.be.revertedWith(INVALID_AMOUNT);
+            await expect(bank.connect(jack).takeOutLoan(ONE, { value: ZERO })).to.be.revertedWith(INVALID_AMOUNT);
         });
     });
 });
