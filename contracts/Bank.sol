@@ -15,6 +15,11 @@ contract Bank is IBank {
         _;
     }
 
+    modifier isInCorrectState(uint256 loanId, LoanState needState) {
+        require(loans[loanId].state == needState, Error.INVALID_LOAN_STATE);
+        _;
+    }
+
     constructor(address dollar_) {
         dollar = dollar_;
     }
@@ -47,7 +52,27 @@ contract Bank is IBank {
         Dollar(dollar).mint(msg.sender, amount);
     }
 
-    function settleLoan() external {}
+    function settleLoan(uint256 loanId, uint256 amount)
+        external
+        isInCorrectState(loanId, LoanState.ACTIVE)
+        isNotZero(amount)
+    {
+        Loan storage loan = loans[loanId];
+        require(amount <= loan.amount, Error.INVALID_AMOUNT);
+        require(
+            Dollar(dollar).transferFrom(msg.sender, address(this), amount),
+            Error.INSUFFICIENT_ALLOWANCE
+        );
+        uint256 payback = (loan.collateral * amount) / loan.amount;
+        Dollar(dollar).burn(amount);
+        loan.collateral -= payback;
+        loan.amount -= amount;
+        if (loan.amount == 0) {
+            loan.state = LoanState.SETTLED;
+        }
+        emit LoanSettled(loan.recipient, loanId, payback, amount);
+        payable(loan.recipient).transfer(payback);
+    }
 
     function liquidate() external {}
 

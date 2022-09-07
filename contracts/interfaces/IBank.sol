@@ -9,6 +9,13 @@ interface IBank {
         uint256 amount
     );
 
+    event LoanSettled(
+        address recipient,
+        uint256 loanId,
+        uint256 payback,
+        uint256 amount
+    );
+
     enum LoanState {
         UNDEFINED,
         ACTIVE,
