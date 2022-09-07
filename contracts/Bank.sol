@@ -87,7 +87,23 @@ contract Bank is IBank, AccessControl {
         payable(loan.recipient).transfer(payback);
     }
 
-    function liquidate() external {}
+    function liquidate(uint256 loanId)
+        external
+        isInCorrectState(loanId, LoanState.ACTIVE)
+    {
+        Loan storage loan = loans[loanId];
+        require(
+            loan.collateral < minCollateral(loan.amount),
+            Error.SUFFICIENT_COLLATERAL
+        );
+        loan.state = LoanState.UNDER_LIQUIDATION;
+        ILiquidator(liquidator).startLiquidation(
+            loanId,
+            loan.collateral,
+            loan.amount,
+            liquidationDuration
+        );
+    }
 
     function liquidated() external {}
 }
