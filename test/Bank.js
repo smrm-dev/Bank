@@ -9,8 +9,17 @@ const ZERO = constants.Zero;
 const ONE = constants.One;
 
 const INSUFFICIENT_COLLATERAL = "INSUFFICIENT_COLLATERAL";
+const SUFFICIENT_COLLATERAL = "SUFFICIENT_COLLATERAL";
 const INVALID_AMOUNT = "INVALID_AMOUNT";
 const INVALID_LOAN_STATE = "INVALID_LOAN_STATE";
+
+const LoanState = {
+    UNDEFINED: 0,
+    ACTIVE: 1,
+    UNDER_LIQUIDATION: 2,
+    LIQUIDATED: 3,
+    SETTLED: 4
+}
 
 const getBalance = ethers.provider.getBalance
 
@@ -29,13 +38,17 @@ describe("Bank", function () {
         const Bank = await ethers.getContractFactory("Bank");
         const bank = await Bank.deploy(dollar.address);
 
+        const Liquidator = await ethers.getContractFactory("Liquidator");
+        const liquidator = await Liquidator.deploy(bank.address, dollar.address);
+
+        await bank.setLiquidator(liquidator.address);
         await dollar.grantRole(await dollar.MINTER_ROLE(), bank.address);
 
-        return { bank, dollar, owner, jack };
+        return { bank, dollar, liquidator, owner, jack };
     }
 
     async function takeOutLoan() {
-        const { bank, dollar, jack } = await deploy();
+        const { bank, dollar, liquidator, jack } = await deploy();
 
         const collateral = BigInt(1000e18);
         const amount = BigInt(1000e18);
@@ -43,7 +56,7 @@ describe("Bank", function () {
         await bank.connect(jack).takeOutLoan(amount, { value: collateral });
         const loanId = await bank.lastLoanId();
 
-        return { bank, dollar, jack, loanId }
+        return { bank, dollar, liquidator, jack, loanId }
     }
 
     describe("Deployment", function () {
@@ -115,7 +128,7 @@ describe("Bank", function () {
             expect(ethBalanceAfterSettle.sub(ethBalanceBeforeSettle), "Collateral hasn't been paid").to.gt(0);
             expect(settledLoan.collateral).to.equal(activeLoan.collateral.sub(freeCollateral));
             expect(settledLoan.amount).to.equal(activeLoan.amount.sub(amount));
-            expect(settledLoan.state).to.equal(1);
+            expect(settledLoan.state).to.equal(LoanState.ACTIVE);
         });
 
         it("Should fail because of zero amount", async function () {
@@ -123,6 +136,29 @@ describe("Bank", function () {
             const { bank, jack, loanId } = await loadFixture(takeOutLoan);
 
             await expect(bank.connect(jack).settleLoan(loanId, ZERO)).to.be.revertedWith(INVALID_AMOUNT);
+        });
+
+        it("Should fail because of not active loan state", async function () {
+
+            const { bank, jack } = await loadFixture(takeOutLoan);
+
+            await expect(bank.connect(jack).settleLoan(0, ONE)).to.be.revertedWith(INVALID_LOAN_STATE);
+        });
+    });
+
+    describe("Liquidate", function () {
+        it("Should failed because of sufficient collateral", async function () {
+            const { bank, loanId } = await loadFixture(takeOutLoan);
+
+            expect(bank.liquidate(loanId)).to.be.rejectedWith(SUFFICIENT_COLLATERAL);
+        });
+
+        it("Should start liquidation and change loan state", async function () {
+            const { bank, loanId } = await loadFixture(takeOutLoan);
+
+            await bank.liquidate(loanId);
+            const loan = await bank.loans(loanId);
+            expect(loan.state).to.equal(LoanState.UNDER_LIQUIDATION);
         });
 
         it("Should fail because of not active loan state", async function () {
