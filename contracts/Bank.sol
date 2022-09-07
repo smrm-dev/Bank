@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./Dollar.sol";
 import "./libraries/Error.sol";
 import "./interfaces/IBank.sol";
+import "./interfaces/ILiquidator.sol";
 
 contract Bank is IBank, AccessControl {
     uint256 public lastLoanId;
