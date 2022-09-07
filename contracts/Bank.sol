@@ -34,7 +34,7 @@ contract Bank is IBank {
             Error.INSUFFICIENT_COLLATERAL
         );
 
-        uint256 loanId = lastLoanId++;
+        uint256 loanId = ++lastLoanId;
 
         loans[loanId] = Loan({
             recipient: msg.sender,

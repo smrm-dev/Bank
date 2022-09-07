@@ -41,7 +41,6 @@ describe("Bank", function () {
             const collateral = BigInt(1000e18);
             const amount = BigInt(1000e18);
             const balanceBeforeLoan = await dollar.balanceOf(jack.address);
-            const loanId = await bank.lastLoanId();
 
             await bank.connect(jack).takeOutLoan(amount, { value: collateral });
 
@@ -49,14 +48,13 @@ describe("Bank", function () {
 
             expect(balanceAfterLoan.sub(balanceBeforeLoan)).to.equal(amount);
 
+            const loanId = await bank.lastLoanId();
             const loan = await bank.loans(loanId);
 
             expect(loan.recipient).to.equal(jack.address);
             expect(loan.collateral).to.equal(collateral);
             expect(loan.amount).to.equal(amount);
             expect(loan.state).to.equal(1);
-
-            expect(await bank.lastLoanId()).to.equal(loanId + 1);
         });
 
         it("Should fail because of insuficient collateral", async function () {
