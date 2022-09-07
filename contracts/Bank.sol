@@ -11,6 +11,7 @@ contract Bank is IBank, AccessControl {
     uint256 public lastLoanId;
     address public dollar;
     address public liquidator;
+    uint256 public liquidationDuration;
 
     mapping(uint256 => Loan) public loans;
 
@@ -28,6 +29,7 @@ contract Bank is IBank, AccessControl {
 
     constructor(address dollar_) {
         dollar = dollar_;
+        liquidationDuration = 7200; // = 2 hours
 
         _grantRole(SETTER_ROLE, msg.sender);
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -35,6 +37,13 @@ contract Bank is IBank, AccessControl {
 
     function setLiquidator(address liquidator_) external onlyRole(SETTER_ROLE) {
         liquidator = liquidator_;
+    }
+
+    function setLiquidationDuration(uint256 liquidationDuration_)
+        external
+        onlyRole(SETTER_ROLE)
+    {
+        liquidationDuration = liquidationDuration_;
     }
 
     function minCollateral(uint256 amount) public pure returns (uint256) {
