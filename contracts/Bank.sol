@@ -1,14 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
+import "@openzeppelin/contracts/access/AccessControl.sol";
+
 import "./Dollar.sol";
 import "./libraries/Error.sol";
 import "./interfaces/IBank.sol";
 
-contract Bank is IBank {
+contract Bank is IBank, AccessControl {
     uint256 public lastLoanId;
     address public dollar;
+    address public liquidator;
+
     mapping(uint256 => Loan) public loans;
+
+    bytes32 public constant SETTER_ROLE = keccak256("SETTER_ROLE");
 
     modifier isNotZero(uint256 number) {
         require(number != 0, Error.INVALID_AMOUNT);
@@ -22,6 +28,13 @@ contract Bank is IBank {
 
     constructor(address dollar_) {
         dollar = dollar_;
+
+        _grantRole(SETTER_ROLE, msg.sender);
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    }
+
+    function setLiquidator(address liquidator_) external onlyRole(SETTER_ROLE) {
+        liquidator = liquidator_;
     }
 
     function minCollateral(uint256 amount) public pure returns (uint256) {
