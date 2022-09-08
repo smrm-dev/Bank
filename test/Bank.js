@@ -23,48 +23,47 @@ const LoanState = {
 
 const getBalance = ethers.provider.getBalance
 
+async function deploy() {
+    // Contracts are deployed using the first signer/account by default
+    const [owner, jack] = await ethers.getSigners();
+
+    const Dollar = await ethers.getContractFactory("Dollar");
+    const dollar = await Dollar.deploy();
+
+    const Bank = await ethers.getContractFactory("Bank");
+    const bank = await Bank.deploy(dollar.address);
+
+    const Liquidator = await ethers.getContractFactory("Liquidator");
+    const liquidator = await Liquidator.deploy(bank.address, dollar.address);
+
+    await bank.setLiquidator(liquidator.address);
+    await dollar.grantRole(await dollar.MINTER_ROLE(), bank.address);
+
+    return { bank, dollar, liquidator, owner, jack };
+}
+
+async function takeOutLoan() {
+    const { bank, dollar, liquidator, jack } = await deploy();
+
+    const collateral = BigInt(1000e18);
+    const amount = BigInt(1000e18);
+
+    await bank.connect(jack).takeOutLoan(amount, { value: collateral });
+    const loanId = await bank.lastLoanId();
+
+    return { bank, dollar, liquidator, jack, loanId }
+}
+
+async function liquidate() {
+    const { bank, dollar, liquidator, jack, loanId } = await takeOutLoan();
+    await bank.liquidate(loanId);
+    return { bank, dollar, liquidator, jack, loanId };
+}
+
 describe("Bank", function () {
     // We define a fixture to reuse the same setup in every test.
     // We use loadFixture to run this setup once, snapshot that state,
     // and reset Hardhat Network to that snapshot in every test.
-    async function deploy() {
-
-        // Contracts are deployed using the first signer/account by default
-        const [owner, jack] = await ethers.getSigners();
-
-        const Dollar = await ethers.getContractFactory("Dollar");
-        const dollar = await Dollar.deploy();
-
-        const Bank = await ethers.getContractFactory("Bank");
-        const bank = await Bank.deploy(dollar.address);
-
-        const Liquidator = await ethers.getContractFactory("Liquidator");
-        const liquidator = await Liquidator.deploy(bank.address, dollar.address);
-
-        await bank.setLiquidator(liquidator.address);
-        await dollar.grantRole(await dollar.MINTER_ROLE(), bank.address);
-
-        return { bank, dollar, liquidator, owner, jack };
-    }
-
-    async function takeOutLoan() {
-        const { bank, dollar, liquidator, jack } = await deploy();
-
-        const collateral = BigInt(1000e18);
-        const amount = BigInt(1000e18);
-
-        await bank.connect(jack).takeOutLoan(amount, { value: collateral });
-        const loanId = await bank.lastLoanId();
-
-        return { bank, dollar, liquidator, jack, loanId }
-    }
-
-    async function liquidate() {
-        const { bank, dollar, liquidator, jack, loanId } = await takeOutLoan();
-        await bank.liquidate(loanId);
-        return { bank, dollar, liquidator, jack, loanId };
-    }
-
     describe("Deployment", function () {
         it("Always Fail", async function () {
             expect(true).to.equal(false);
@@ -200,3 +199,11 @@ describe("Bank", function () {
         });
     });
 });
+
+module.exports = {
+    deploy,
+    takeOutLoan,
+    liquidate,
+    ZERO,
+    ONE
+}
