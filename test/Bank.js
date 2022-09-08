@@ -59,6 +59,12 @@ describe("Bank", function () {
         return { bank, dollar, liquidator, jack, loanId }
     }
 
+    async function liquidate() {
+        const { bank, dollar, liquidator, jack, loanId } = await takeOutLoan();
+        await bank.liquidate(loanId);
+        return { bank, dollar, liquidator, jack, loanId };
+    }
+
     describe("Deployment", function () {
         it("Always Fail", async function () {
             expect(true).to.equal(false);
@@ -157,15 +163,40 @@ describe("Bank", function () {
             const { bank, loanId } = await loadFixture(takeOutLoan);
 
             await bank.liquidate(loanId);
+
             const loan = await bank.loans(loanId);
+
             expect(loan.state).to.equal(LoanState.UNDER_LIQUIDATION);
         });
 
         it("Should fail because of not active loan state", async function () {
-
             const { bank, jack } = await loadFixture(takeOutLoan);
 
-            await expect(bank.connect(jack).settleLoan(0, ONE)).to.be.revertedWith(INVALID_LOAN_STATE);
+            expect(bank.connect(jack).settleLoan(ZERO, ONE)).to.be.revertedWith(INVALID_LOAN_STATE);
+        });
+    });
+
+    describe("Liquidated", function () {
+        it("Should faile because of not under liquidation loan state", async function () {
+            const { bank } = await loadFixture(liquidate);
+
+            expect(bank.liquidated(ZERO)).to.be.rejectedWith(INVALID_LOAN_STATE);
+        });
+
+        it("Should liquidate and send collateral to buyer", async function () {
+            const { bank, liquidator, jack } = await loadFixture(liquidate);
+            const underLiquidationLoan = await bank.loans(loanId);
+            const ethBalanceBeforeLiquidation = await getBalance(jack.address);
+
+            await bank.liquidated(loanId);
+
+            const ethBalanceAfterLiquidation = await getBalance(jack.address);
+            const liquidatedLoan = await bank.loans(loanId);
+            const collateral = await liquidator.liquidations(liquidatedLoan.liquidationId).collateral;
+
+            expect(liquidatedLoan.amount).to.equal(ZERO);
+            expect(liquidatedLoan.state).to.equal(LoanState.LIQUIDATED);
+            expect(ethBalanceAfterLiquidation.sub(ethBalanceBeforeLiquidation)).to.equal(collateral);
         });
     });
 });
