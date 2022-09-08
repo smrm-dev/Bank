@@ -29,5 +29,6 @@ interface IBank {
         uint256 collateral;
         uint256 amount;
         LoanState state;
+        uint256 liquidationId;
     }
 }

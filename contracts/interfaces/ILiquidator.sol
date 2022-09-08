@@ -7,5 +7,9 @@ interface ILiquidator {
         uint256 collateral,
         uint256 amount,
         uint256 duration
-    ) external;
+    ) external returns (uint256 liquidationId);
+
+    function stopLiquidation(uint256 liquidationId)
+        external
+        returns (uint256 collateral, address buyer);
 }

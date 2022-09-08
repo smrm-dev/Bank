@@ -68,7 +68,8 @@ contract Bank is IBank, AccessControl {
             recipient: msg.sender,
             collateral: msg.value,
             amount: amount,
-            state: LoanState.ACTIVE
+            state: LoanState.ACTIVE,
+            liquidationId: 0
         });
 
         emit LoanTook(msg.sender, loanId, msg.value, amount);
@@ -107,7 +108,7 @@ contract Bank is IBank, AccessControl {
             Error.SUFFICIENT_COLLATERAL
         );
         loan.state = LoanState.UNDER_LIQUIDATION;
-        ILiquidator(liquidator).startLiquidation(
+        loan.liquidationId = ILiquidator(liquidator).startLiquidation(
             loanId,
             loan.collateral,
             loan.amount,
@@ -115,5 +116,16 @@ contract Bank is IBank, AccessControl {
         );
     }
 
-    function liquidated() external {}
+    function liquidated(uint256 loanId)
+        external
+        isInCorrectState(loanId, LoanState.UNDER_LIQUIDATION)
+    {
+        Loan storage loan = loans[loanId];
+        (uint256 collateral, address buyer) = ILiquidator(liquidator)
+            .stopLiquidation(loan.liquidationId);
+        loan.collateral -= collateral;
+        loan.amount = 0;
+        loan.state = LoanState.LIQUIDATED;
+        payable(buyer).transfer(collateral);
+    }
 }
