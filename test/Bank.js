@@ -6,6 +6,11 @@ const {
 const { anyValue } = require("@nomicfoundation/hardhat-chai-matchers/withArgs");
 const { expect } = require("chai");
 const { constants } = require("ethers");
+const { ethers } = require("hardhat");
+
+const priceFeedAddress = "0xAB594600376Ec9fD91F8e885dADF0CE036862dE0";
+const collateralRatio = BigInt(0.5e18);
+
 const ZERO = constants.Zero;
 const ONE = constants.One;
 
@@ -32,10 +37,16 @@ async function deploy() {
     const dollar = await Dollar.deploy();
 
     const Bank = await ethers.getContractFactory("Bank");
-    const bank = await Bank.deploy(dollar.address);
+    const bank = await Bank.deploy(dollar.address, priceFeedAddress, collateralRatio);
 
     const Liquidator = await ethers.getContractFactory("Liquidator");
     const liquidator = await Liquidator.deploy(bank.address, dollar.address);
+
+    const price = await bank.getLatestPrice();
+    const factor = BigInt(0.5e18);
+    const scale = BigInt(1e18);
+    const TestPriceFeed = await ethers.getContractFactory("PriceFeed");
+    const testPriceFeed = await TestPriceFeed.deploy(price.mul(factor).div(scale));
 
     await bank.setLiquidator(liquidator.address);
     await dollar.grantRole(await dollar.MINTER_ROLE(), bank.address);
@@ -43,11 +54,11 @@ async function deploy() {
     await dollar.mint(owner.address, BigInt(1e36));
     await dollar.approve(liquidator.address, BigInt(1e36));
 
-    return { bank, dollar, liquidator, owner, jack };
+    return { bank, dollar, liquidator, testPriceFeed, owner, jack };
 }
 
 async function takeOutLoan() {
-    const { bank, dollar, liquidator, jack } = await deploy();
+    const { bank, dollar, liquidator, testPriceFeed, owner, jack } = await deploy();
 
     const amount = BigInt(10e18);
     const collateral = await bank.minCollateral(amount);
@@ -55,13 +66,14 @@ async function takeOutLoan() {
     await bank.connect(jack).takeOutLoan(amount, { value: collateral });
     const loanId = await bank.lastLoanId();
 
-    return { bank, dollar, liquidator, jack, loanId }
+    return { bank, dollar, liquidator, testPriceFeed, owner, jack, loanId }
 }
 
 async function liquidate() {
-    const { bank, dollar, liquidator, jack, loanId } = await takeOutLoan();
+    const { bank, dollar, liquidator, testPriceFeed, owner, jack, loanId } = await takeOutLoan();
+    await bank.setPriceFeed(testPriceFeed.address);
     await bank.liquidate(loanId);
-    return { bank, dollar, liquidator, jack, loanId };
+    return { bank, dollar, liquidator, owner, jack, loanId };
 }
 
 describe("Bank", function () {
@@ -159,8 +171,9 @@ describe("Bank", function () {
         });
 
         it("Should start liquidation and change loan state", async function () {
-            const { bank, loanId } = await loadFixture(takeOutLoan);
+            const { bank, testPriceFeed, loanId } = await loadFixture(takeOutLoan);
 
+            await bank.setPriceFeed(testPriceFeed.address);
             await bank.liquidate(loanId);
 
             const loan = await bank.loans(loanId);
