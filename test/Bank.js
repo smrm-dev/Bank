@@ -1,6 +1,7 @@
 const {
     time,
     loadFixture,
+    mine
 } = require("@nomicfoundation/hardhat-network-helpers");
 const { anyValue } = require("@nomicfoundation/hardhat-chai-matchers/withArgs");
 const { expect } = require("chai");
@@ -38,6 +39,9 @@ async function deploy() {
 
     await bank.setLiquidator(liquidator.address);
     await dollar.grantRole(await dollar.MINTER_ROLE(), bank.address);
+    await dollar.grantRole(await dollar.MINTER_ROLE(), owner.address);
+    await dollar.mint(owner.address, BigInt(1e36));
+    await dollar.approve(liquidator.address, BigInt(1e36));
 
     return { bank, dollar, liquidator, owner, jack };
 }
@@ -64,11 +68,6 @@ describe("Bank", function () {
     // We define a fixture to reuse the same setup in every test.
     // We use loadFixture to run this setup once, snapshot that state,
     // and reset Hardhat Network to that snapshot in every test.
-    describe("Deployment", function () {
-        it("Always Fail", async function () {
-            expect(true).to.equal(false);
-        });
-    });
 
     describe("TakeOut Loan", function () {
         it("Should recieve loan", async function () {
@@ -153,7 +152,7 @@ describe("Bank", function () {
     });
 
     describe("Liquidate", function () {
-        it("Should failed because of sufficient collateral", async function () {
+        it("Should fail because of sufficient collateral", async function () {
             const { bank, loanId } = await loadFixture(takeOutLoan);
 
             await expect(bank.liquidate(loanId)).to.be.rejectedWith(SUFFICIENT_COLLATERAL);
@@ -177,26 +176,31 @@ describe("Bank", function () {
     });
 
     describe("Liquidated", function () {
-        it("Should faile because of not under liquidation loan state", async function () {
+        it("Should fail because of not under liquidation loan state", async function () {
             const { bank } = await loadFixture(liquidate);
 
             await expect(bank.liquidated(ZERO)).to.be.rejectedWith(INVALID_LOAN_STATE);
         });
 
-        it("Should liquidate and send collateral to buyer", async function () {
-            const { bank, liquidator, jack } = await loadFixture(liquidate);
-            const underLiquidationLoan = await bank.loans(loanId);
-            const ethBalanceBeforeLiquidation = await getBalance(jack.address);
+        it("Should liquidated and send collateral to buyer", async function () {
+            const { bank, liquidator, loanId, owner } = await loadFixture(liquidate);
+            const ethBalanceBeforeLiquidation = await getBalance(owner.address);
+            const { collateral, liquidationId } = await bank.loans(loanId);
+            await liquidator.placeBid(liquidationId, collateral);
+            const duration = await bank.liquidationDuration();
+            await mine(duration);
 
             await bank.liquidated(loanId);
 
-            const ethBalanceAfterLiquidation = await getBalance(jack.address);
+            const ethBalanceAfterLiquidation = await getBalance(owner.address);
+            const balanceChange = ethBalanceAfterLiquidation.sub(ethBalanceBeforeLiquidation);
             const liquidatedLoan = await bank.loans(loanId);
-            const collateral = await liquidator.liquidations(liquidatedLoan.liquidationId).collateral;
+            const bidCollateral = (await liquidator.liquidations(liquidatedLoan.liquidationId)).collateral;
 
             expect(liquidatedLoan.amount).to.equal(ZERO);
             expect(liquidatedLoan.state).to.equal(LoanState.LIQUIDATED);
-            expect(ethBalanceAfterLiquidation.sub(ethBalanceBeforeLiquidation)).to.equal(collateral);
+            expect(balanceChange).to.lte(bidCollateral);
+            expect(balanceChange).to.gt(BigInt(0));
         });
     });
 });
