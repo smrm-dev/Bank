@@ -155,7 +155,7 @@ describe("Bank", function () {
         it("Should failed because of sufficient collateral", async function () {
             const { bank, loanId } = await loadFixture(takeOutLoan);
 
-            expect(bank.liquidate(loanId)).to.be.rejectedWith(SUFFICIENT_COLLATERAL);
+            await expect(bank.liquidate(loanId)).to.be.rejectedWith(SUFFICIENT_COLLATERAL);
         });
 
         it("Should start liquidation and change loan state", async function () {
@@ -179,7 +179,7 @@ describe("Bank", function () {
         it("Should faile because of not under liquidation loan state", async function () {
             const { bank } = await loadFixture(liquidate);
 
-            expect(bank.liquidated(ZERO)).to.be.rejectedWith(INVALID_LOAN_STATE);
+            await expect(bank.liquidated(ZERO)).to.be.rejectedWith(INVALID_LOAN_STATE);
         });
 
         it("Should liquidate and send collateral to buyer", async function () {
