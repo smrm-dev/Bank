@@ -10,7 +10,7 @@ contract Liquidator is ILiquidator {
     address public dollar;
 
     uint256 public lastLiquidationId;
-    mapping(uint256 => Liquidation) liquidations;
+    mapping(uint256 => Liquidation) public liquidations;
 
     constructor(address bank_, address dollar_) {
         bank = bank_;
@@ -90,7 +90,8 @@ contract Liquidator is ILiquidator {
             address(this),
             liquidation.amount
         );
-        Dollar(dollar).transfer(liquidation.bestBidder, liquidation.amount);
+        if (liquidation.bestBid != 0)
+            Dollar(dollar).transfer(liquidation.bestBidder, liquidation.amount);
         liquidation.bestBidder = msg.sender;
         liquidation.bestBid = bidAmount;
     }

@@ -3,6 +3,7 @@ pragma solidity ^0.8.4;
 
 interface ILiquidator {
     enum LiquidationState {
+        NULL,
         ACTIVE,
         FINISHED
     }
