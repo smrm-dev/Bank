@@ -11,6 +11,8 @@ interface ILiquidator {
         uint256 collateral;
         uint256 amount;
         uint256 endTime;
+        address bestBidder;
+        uint256 bestBid;
         LiquidationState state;
     }
 

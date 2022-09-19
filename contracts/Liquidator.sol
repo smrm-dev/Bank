@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
-import "./interfaces/ILiquidator.sol";
 import "./libraries/Error.sol";
+import "./interfaces/ILiquidator.sol";
+import "./Dollar.sol";
 
 contract Liquidator is ILiquidator {
     address public bank;
@@ -21,6 +22,14 @@ contract Liquidator is ILiquidator {
         _;
     }
 
+    modifier onlyActive(uint256 liquidationId) {
+        require(
+            liquidations[liquidationId].state == LiquidationState.ACTIVE,
+            Error.NOT_ACTIVE_LIQUIDATION
+        );
+        _;
+    }
+
     function startLiquidation(
         uint256 loanId,
         uint256 collateral,
@@ -34,6 +43,8 @@ contract Liquidator is ILiquidator {
             collateral: collateral,
             amount: amount,
             endTime: endTime,
+            bestBidder: address(0),
+            bestBid: 0,
             state: LiquidationState.ACTIVE
         });
         emit LiquidationStarted(
@@ -50,5 +61,23 @@ contract Liquidator is ILiquidator {
         returns (uint256 collateral, address buyer)
     {}
 
-    function palceBid() external {}
+    function placeBid(uint256 liquidationId, uint256 bidAmount)
+        external
+        onlyActive(liquidationId)
+    {
+        Liquidation storage liquidation = liquidations[liquidationId];
+        uint256 maxBid = liquidation.bestBid != 0
+            ? liquidation.bestBid - 1
+            : liquidation.collateral;
+
+        require(bidAmount <= maxBid, Error.INADEQUATE_BIDDING);
+        Dollar(dollar).transferFrom(
+            msg.sender,
+            address(this),
+            liquidation.amount
+        );
+        Dollar(dollar).transfer(liquidation.bestBidder, liquidation.amount);
+        liquidation.bestBidder = msg.sender;
+        liquidation.bestBid = bidAmount;
+    }
 }
