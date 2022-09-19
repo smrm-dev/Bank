@@ -1,6 +1,7 @@
 const {
     time,
     loadFixture,
+    mine
 } = require("@nomicfoundation/hardhat-network-helpers");
 const { anyValue } = require("@nomicfoundation/hardhat-chai-matchers/withArgs");
 const { expect } = require("chai");
@@ -9,10 +10,19 @@ const { deploy, takeOutLoan, liquidate, ZERO, ONE } = require("./Bank");
 const ONLY_BANK = "ONLY_BANK";
 const NOT_ACTIVE_LIQUIDATION = "NOT_ACTIVE_LIQUIDATION";
 const INADEQUATE_BIDDING = "INADEQUATE_BIDDING";
+const OPEN_LIQUIDATION = "OPEN_LIQUIDATION";
+const NO_BID = "NO_BID";
 
 const LiquidationState = {
     ACTIVE: 0,
     FINISHED: 1
+}
+
+async function placeBid() {
+    const { bank, dollar, liquidator, jack, loanId } = await liquidate();
+    const { collateral, liquidationId } = await bank.loans(loanId);
+    await liquidator.placeBid(liquidationId, collateral);
+    return { bank, dollar, liquidator, jack, loanId, liquidationId };
 }
 
 describe("Liquidator", function () {
@@ -66,6 +76,41 @@ describe("Liquidator", function () {
 
             expect(lastLiquidation.bestBidder).to.equal(owner.address);
             expect(lastLiquidation.bestBid).to.equal(loan.collateral);
+        });
+    });
+
+    describe("Stop liquidation", function () {
+        it("Should fail because of calling by an address which is not Bank", async function () {
+            const { liquidator } = await loadFixture(deploy);
+            await expect(liquidator.stopLiquidation(ZERO)).to.be.rejectedWith(ONLY_BANK);
+        });
+
+        it("Should failed because of open liquidation", async function () {
+            const { bank, loanId } = await loadFixture(liquidate);
+            await expect(bank.liquidated(loanId)).to.be.rejectedWith(OPEN_LIQUIDATION);
+        });
+        it("Should failed because of no bid", async function () {
+            const { bank, loanId } = await loadFixture(liquidate);
+            await expect(bank.liquidated(loanId)).to.be.rejectedWith(NO_BID);
+        });
+
+        it("Should stop liquidation", async function () {
+            const { bank, dollar, liquidator, loanId, liquidationId } = await loadFixture(placeBid);
+
+            const duration = await bank.liquidationDuraion();
+            const loan = await bank.loans(loanId);
+
+            await mine(duration);
+
+            const balanceBeforeLiquidate = await dollar.balanceOf(liquidator.address);
+
+            await bank.liquidated(loanId);
+
+            const balanceAfterLiquidate = await dollar.balanceOf(liquidator.address);
+            const liquidation = await liquidator.liquidations(liquidationId);
+
+            expect(balanceBeforeLiquidate.sub(balanceAfterLiquidate)).to.equal(loan.amount);
+            expect(liquidation.state).to.equal(LiquidationState.FINISHED);
         });
     });
 });
