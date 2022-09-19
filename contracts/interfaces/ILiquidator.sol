@@ -17,11 +17,18 @@ interface ILiquidator {
     }
 
     event LiquidationStarted(
-        uint256 indexed liquidationId,
-        uint256 indexed loanId,
+        uint256 liquidationId,
+        uint256 loanId,
         uint256 collateral,
         uint256 amount,
         uint256 endTime
+    );
+
+    event LiquidationStopped(
+        uint256 liquidationId,
+        uint256 loanId,
+        uint256 bestBid,
+        address bestBidder
     );
 
     function startLiquidation(

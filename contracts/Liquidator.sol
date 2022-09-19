@@ -58,8 +58,22 @@ contract Liquidator is ILiquidator {
 
     function stopLiquidation(uint256 liquidationId)
         external
+        onlyBank
         returns (uint256 collateral, address buyer)
-    {}
+    {
+        Liquidation storage liquidation = liquidations[liquidationId];
+        require(liquidation.endTime <= block.timestamp, Error.OPEN_LIQUIDATION);
+        require(liquidation.bestBid != 0, Error.NO_BID);
+        liquidation.state = LiquidationState.FINISHED;
+        Dollar(dollar).burn(liquidation.amount);
+        emit LiquidationStopped(
+            liquidationId,
+            liquidation.loanId,
+            liquidation.bestBid,
+            liquidation.bestBidder
+        );
+        return (liquidation.bestBid, liquidation.bestBidder);
+    }
 
     function placeBid(uint256 liquidationId, uint256 bidAmount)
         external
