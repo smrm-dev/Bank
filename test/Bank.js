@@ -45,8 +45,8 @@ async function deploy() {
 async function takeOutLoan() {
     const { bank, dollar, liquidator, jack } = await deploy();
 
-    const collateral = BigInt(1000e18);
-    const amount = BigInt(1000e18);
+    const amount = BigInt(10e18);
+    const collateral = await bank.minCollateral(amount);
 
     await bank.connect(jack).takeOutLoan(amount, { value: collateral });
     const loanId = await bank.lastLoanId();
@@ -74,8 +74,8 @@ describe("Bank", function () {
         it("Should recieve loan", async function () {
             const { bank, dollar, jack } = await loadFixture(deploy);
 
-            const collateral = BigInt(1000e18);
-            const amount = BigInt(1000e18);
+            const amount = BigInt(10e18);
+            const collateral = await bank.minCollateral(amount);
             const balanceBeforeLoan = await dollar.balanceOf(jack.address);
 
             await bank.connect(jack).takeOutLoan(amount, { value: collateral });
@@ -96,8 +96,9 @@ describe("Bank", function () {
         it("Should fail because of insuficient collateral", async function () {
             const { bank, jack } = await loadFixture(deploy);
 
-            const collateral = BigInt(1e18);
-            const amount = BigInt(1000e18);
+            const factor = BigInt(0.5e18);
+            const amount = BigInt(10e18);
+            const collateral = (await bank.minCollateral(amount)).mul(factor).div(BigInt(1e18));
 
             await expect(bank.connect(jack).takeOutLoan(amount, { value: collateral })).to.be.revertedWith(INSUFFICIENT_COLLATERAL);
         });
@@ -115,7 +116,7 @@ describe("Bank", function () {
         it("Should settle part of loan and recieve collateral", async function () {
             const { bank, dollar, jack, loanId } = await loadFixture(takeOutLoan);
 
-            const amount = BigInt(500e18);
+            const amount = BigInt(5e18);
 
             const activeLoan = await bank.loans(loanId);
             const balanceBeforeSettle = await dollar.balanceOf(jack.address);
