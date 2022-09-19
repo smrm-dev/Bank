@@ -161,4 +161,14 @@ contract Bank is IBank, AccessControl {
         loan.state = LoanState.LIQUIDATED;
         payable(buyer).transfer(collateral);
     }
+
+    function increaseCollateral(uint256 loanId)
+        external
+        payable
+        isNotZero(msg.value)
+        isInCorrectState(loanId, LoanState.ACTIVE)
+    {
+        loans[loanId].collateral += msg.value;
+        emit CollateralIncreased(msg.sender, loanId, msg.value);
+    }
 }

@@ -16,6 +16,12 @@ interface IBank {
         uint256 amount
     );
 
+    event CollateralIncreased(
+        address indexed recipient,
+        uint256 indexed loanId,
+        uint256 collateral
+    );
+
     enum LoanState {
         UNDEFINED,
         ACTIVE,
