@@ -2,6 +2,7 @@
 pragma solidity ^0.8.4;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 import "./Dollar.sol";
 import "./libraries/Error.sol";
@@ -11,6 +12,8 @@ import "./interfaces/ILiquidator.sol";
 contract Bank is IBank, AccessControl {
     uint256 public lastLoanId;
     address public dollar;
+    address public priceFeed;
+    uint256 public collateralRatio;
     address public liquidator;
     uint256 public liquidationDuration;
 
@@ -28,12 +31,29 @@ contract Bank is IBank, AccessControl {
         _;
     }
 
-    constructor(address dollar_) {
+    constructor(
+        address dollar_,
+        address priceFeed_,
+        uint256 collateralRatio_
+    ) {
         dollar = dollar_;
+        priceFeed = priceFeed_;
+        collateralRatio = collateralRatio_;
         liquidationDuration = 7200; // = 2 hours
 
         _grantRole(SETTER_ROLE, msg.sender);
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    }
+
+    function setPriceFeed(address priceFeed_) external onlyRole(SETTER_ROLE) {
+        priceFeed = priceFeed_;
+    }
+
+    function setCollateralRatio(uint256 collateralRatio_)
+        external
+        onlyRole(SETTER_ROLE)
+    {
+        collateralRatio = collateralRatio_;
     }
 
     function setLiquidator(address liquidator_) external onlyRole(SETTER_ROLE) {
@@ -47,8 +67,21 @@ contract Bank is IBank, AccessControl {
         liquidationDuration = liquidationDuration_;
     }
 
-    function minCollateral(uint256 amount) public pure returns (uint256) {
-        return amount;
+    /**
+     * Returns the latest price
+     */
+    function getLatestPrice() public view returns (int) {
+        (, int price, , , ) = AggregatorV3Interface(priceFeed)
+            .latestRoundData();
+        return price;
+    }
+
+    function minCollateral(uint256 amount) public view returns (uint256) {
+        uint256 min = (amount *
+            1e18 *
+            10**AggregatorV3Interface(priceFeed).decimals()) /
+            (uint256(getLatestPrice()) * collateralRatio);
+        return min;
     }
 
     function takeOutLoan(uint256 amount)
