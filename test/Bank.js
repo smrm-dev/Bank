@@ -18,6 +18,7 @@ const INSUFFICIENT_COLLATERAL = "INSUFFICIENT_COLLATERAL";
 const SUFFICIENT_COLLATERAL = "SUFFICIENT_COLLATERAL";
 const INVALID_AMOUNT = "INVALID_AMOUNT";
 const INVALID_LOAN_STATE = "INVALID_LOAN_STATE";
+const ONLY_LOAN_OWNER = "ONLY_LOAN_OWNER";
 
 const LoanState = {
     UNDEFINED: 0,
@@ -215,6 +216,44 @@ describe("Bank", function () {
             expect(balanceChange).to.lte(bidCollateral);
             expect(balanceChange).to.gt(BigInt(0));
         });
+    });
+
+    describe("Decrease Collateral", function () {
+        it("Should fail because of not active loan state", async function () {
+            const { bank, loanId, jack } = await loadFixture(liquidate);
+            await expect(bank.connect(jack).decreaseCollateral(loanId, ONE)).to.be.rejectedWith(INVALID_LOAN_STATE);
+        });
+
+        it("Should fail because of zero amount", async function () {
+            const { bank, loanId, jack } = await loadFixture(takeOutLoan);
+            await expect(bank.connect(jack).decreaseCollateral(loanId, ZERO)).to.be.rejectedWith(INVALID_AMOUNT);
+        });
+
+        it("Should fail because of being called by an address which is not loan owner", async function () {
+            const { bank, loanId } = await loadFixture(takeOutLoan);
+            await expect(bank.decreaseCollateral(loanId, ONE)).to.be.rejectedWith(ONLY_LOAN_OWNER);
+        });
+
+        it("Should fail because of insufficient amount of collateral", async function () {
+            const { bank, loanId, jack } = await loadFixture(takeOutLoan);
+            const loan = await bank.loans(loanId);
+            const minCollateral = await bank.minCollateral(loan.amount);
+            const amount = loan.collateral.sub(minCollateral).add(ONE);
+            await expect(bank.connect(jack).decreaseCollateral(loanId, amount)).to.be.rejectedWith(INSUFFICIENT_COLLATERAL);
+        });
+
+        it("Should decrease collateral", async function () {
+            const { bank, loanId, jack } = await loadFixture(takeOutLoan);
+            const loan = await bank.loans(loanId);
+            const minCollateral = await bank.minCollateral(loan.amount);
+            const amount = loan.collateral.sub(minCollateral).sub(ONE).abs();
+            await bank.increaseCollateral(loanId, { value: amount });
+            const collateralBeforeDecrease = (await bank.loans(loanId)).collateral;
+            await bank.connect(jack).decreaseCollateral(loanId, amount);
+            const collateralAfterDecrease = (await bank.loans(loanId)).collateral;
+            expect(collateralBeforeDecrease.sub(collateralAfterDecrease)).to.equal(amount);
+        });
+
     });
 });
 
