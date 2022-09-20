@@ -172,5 +172,19 @@ contract Bank is IBank, AccessControl {
         emit CollateralIncreased(msg.sender, loanId, msg.value);
     }
 
-    function decreaseCollateral(uint256 loanId, uint256 amount) external {}
+    function decreaseCollateral(uint256 loanId, uint256 amount)
+        external
+        isNotZero(amount)
+    {
+        Loan storage loan = loans[loanId];
+        require(msg.sender == loan.recipient, Error.ONLY_LOAN_OWNER);
+        require(loan.state == LoanState.ACTIVE, Error.INVALID_LOAN_STATE);
+        require(
+            minCollateral(loan.amount) <= loan.collateral - amount,
+            Error.INSUFFICIENT_COLLATERAL
+        );
+        loan.collateral -= amount;
+        emit CollateralDecreased(msg.sender, loanId, amount);
+        payable(loan.recipient).transfer(amount);
+    }
 }

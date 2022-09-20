@@ -17,8 +17,14 @@ interface IBank {
     );
 
     event CollateralIncreased(
-        address indexed recipient,
-        uint256 indexed loanId,
+        address recipient,
+        uint256 loanId,
+        uint256 collateral
+    );
+
+    event CollateralDecreased(
+        address recipient,
+        uint256 loanId,
         uint256 collateral
     );
 
