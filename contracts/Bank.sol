@@ -171,4 +171,6 @@ contract Bank is IBank, AccessControl {
         loans[loanId].collateral += msg.value;
         emit CollateralIncreased(msg.sender, loanId, msg.value);
     }
+
+    function decreaseCollateral(uint256 loanId, uint256 amount) external {}
 }
